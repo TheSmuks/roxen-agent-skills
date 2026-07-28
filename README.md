@@ -2,7 +2,7 @@
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Roxen](https://img.shields.io/badge/roxen-6.3_%7C_8.3-informational.svg)](https://www.roxen.com/)
-[![Verified](https://img.shields.io/badge/checks-54%2F54_against_real_source-brightgreen.svg)](verify.sh)
+[![Verified](https://img.shields.io/badge/checks-62%2F62_against_real_source-brightgreen.svg)](verify.sh)
 [![Agents](https://img.shields.io/badge/agents-Copilot_%7C_Codex_%7C_Claude-8957e5.svg)](#install)
 
 Agent skills for working in a [Roxen WebServer](https://www.roxen.com/) codebase —
@@ -63,7 +63,7 @@ ROXEN_SRC=/path/to/Roxen ./verify.sh # or check your own tree
 ```
 
 ```
-passed: 54   failed: 0
+passed: 62   failed: 0
 ```
 
 Checks the module-signal counts, the full `MODULE_*` taxonomy, tag discovery in
@@ -73,6 +73,14 @@ from upstream.
 
 > Counts are pinned to the commit they were measured at
 > (`6ed4566`). Override with `ROXEN_PIN` to re-measure against another revision.
+
+## Does it actually help?
+
+[`EVAL.md`](EVAL.md) is a 7-probe hand-run check of whether an agent's *behaviour* changes
+with the skill installed. Each probe targets a misconception where the no-skill answer is
+wrong — naming a tag class `GreetTag` instead of `TagGreet`, hand-editing config files,
+searching for `inherit "module.pike"`. `verify.sh` proves the facts; `EVAL.md` probes the
+behaviour.
 
 ## Related
 

@@ -103,6 +103,38 @@ has "explicit RXML.TagSet registration exists" \
   "$SRC/server/modules/tags/rxmltags.pike" 'RXML.TagSet ('
 echo
 
+# ------------------------------------------------------------- rxml types/entities
+echo "RXML types and entities"
+for t in t_text t_any t_xml t_nil; do
+  if grep -rqF "RXML.$t" "$SRC/server/modules/tags/" 2>/dev/null; then
+    ok "RXML.$t used by real tag modules"
+  else
+    bad "RXML.$t used by real tag modules"
+  fi
+done
+if grep -rqE 'content_type *= *RXML\.' "$SRC/server/modules/tags/" 2>/dev/null; then
+  ok "tags declare content_type"
+else
+  bad "tags declare content_type"
+fi
+if grep -rqoE '&var\.[a-z_]+;' "$SRC/server/" 2>/dev/null; then
+  ok "RXML entity syntax &scope.name; appears in real content"
+else
+  bad "RXML entity syntax &scope.name;"
+fi
+echo
+
+# ------------------------------------------------------------------ running roxen
+echo "running Roxen"
+if [ -f "$SRC/start" ]; then
+  ok "start script present at the server root"
+  grep -qF -- "--config-dir" "$SRC/start" && ok "start accepts --config-dir" \
+                                          || bad "start accepts --config-dir"
+else
+  bad "start script present"
+fi
+echo
+
 # -------------------------------------------------------------- response helpers
 echo "Roxen.pmod response helpers"
 RP="$SRC/server/etc/modules/Roxen.pmod"

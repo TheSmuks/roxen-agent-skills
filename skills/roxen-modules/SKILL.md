@@ -201,6 +201,63 @@ Inheritance counts across `server/modules/tags/`: `RXML.Tag` 163, `RXML.Frame` 1
 Flags by usage: `FLAG_EMPTY_ELEMENT` (51), `FLAG_DONT_RECOVER` (14), `FLAG_CUSTOM_TRACE`
 (5), `FLAG_SOCKET_TAG` (4), `FLAG_PROC_INSTR` (4), `FLAG_DONT_CACHE_RESULT` (4).
 
+## RXML Types and Entities
+
+### Types
+
+A tag declares what it accepts and produces with `content_type` and `result_type`:
+
+```pike
+class TagGreet {
+  inherit RXML.Tag;
+  constant name = "greet";
+  RXML.Type content_type = RXML.t_xml;    // what the body is parsed as
+  RXML.Type result_type  = RXML.t_string; // what do_return produces
+  ...
+}
+```
+
+Types seen across the bundled tag modules, by usage: `RXML.t_text` (140), `RXML.t_any`
+(49), `RXML.t_xml` (33), `RXML.t_nil` (26), plus `t_any_text`, `t_same`, `t_string`,
+`t_html`. `RXML.t_same` means "whatever the surrounding context is".
+
+Getting these wrong is a common source of double-parsed or under-parsed output: a body
+declared `t_text` is not RXML-parsed, one declared `t_xml` is.
+
+### Entities
+
+RXML reads variables as entities, `&scope.name;`:
+
+```
+&form.username;    submitted form variables
+&var.counter;      RXML variables set with <set>/<define>
+&client.ip;        client properties
+&page.path;        current page
+&cookie.session;   cookies
+&roxen.version;    server properties
+```
+
+`&var.*` dominates real usage. Scopes are supplied by modules — `set_entities` in
+`rxmltags.pike` registers the built-in ones, and a `MODULE_TAG` module can add its own by
+inheriting `RXML.Scope`.
+
+## Running Roxen
+
+```bash
+./start                      # from the Roxen server root
+./start --config-dir=DIR     # alternate configuration directory (default: configurations/)
+```
+
+`start` is a `/bin/sh` wrapper that locates Pike and launches the server. Configuration
+lives in `configurations/` as generated files — a running server is administered through
+its **web-based configuration interface**, not by hand-editing those files.
+
+Practical consequence for an agent: **you cannot fully configure Roxen from the
+filesystem.** Mounting a module, setting a `defvar`, or enabling a site is done through
+the config interface, which writes those files itself. When asked to "add this module to
+the site", produce the module and then say which config-interface steps enable it, rather
+than fabricating config-file edits.
+
 ## The `RequestID` Object
 
 `id` carries the request. Most-used members across the bundled modules:
