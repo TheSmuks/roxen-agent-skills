@@ -1,0 +1,27 @@
+name: Verify
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  verify:
+    name: Verify against Roxen source
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Pike is optional for this repo — verify.sh skips the Pike mechanics
+      # checks without it — but installing it gives full coverage.
+      - name: Install Pike
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y pike8.0
+
+      # verify.sh shallow-fetches pikelang/Roxen at the pinned commit that every
+      # documented count was measured against.
+      - name: Verify documented facts against Roxen source
+        run: ./verify.sh
