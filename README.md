@@ -2,7 +2,7 @@
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Roxen](https://img.shields.io/badge/roxen-6.3_%7C_8.3-informational.svg)](https://www.roxen.com/)
-[![Verified](https://img.shields.io/badge/checks-62%2F62_against_real_source-brightgreen.svg)](verify.sh)
+[![Verified](https://img.shields.io/badge/checks-69%2F69_against_real_source-brightgreen.svg)](verify.sh)
 [![Agents](https://img.shields.io/badge/agents-Copilot_%7C_Codex_%7C_Claude-8957e5.svg)](#install)
 
 Agent skills for working in a [Roxen WebServer](https://www.roxen.com/) codebase —
@@ -63,7 +63,7 @@ ROXEN_SRC=/path/to/Roxen ./verify.sh # or check your own tree
 ```
 
 ```
-passed: 62   failed: 0
+passed: 69   failed: 0
 ```
 
 Checks the module-signal counts, the full `MODULE_*` taxonomy, tag discovery in
@@ -73,6 +73,20 @@ from upstream.
 
 > Counts are pinned to the commit they were measured at
 > (`6ed4566`). Override with `ROXEN_PIN` to re-measure against another revision.
+
+## Getting Roxen running at all
+
+[`lab/`](lab/) is a container with Pike 8.0.1116 and a real Roxen 6.3, used to verify these
+skills against a running system. Building it surfaced several dead ends that present as a
+silent exit with no diagnostic — the worst kind to debug:
+
+- Debian/Ubuntu's `pike8.0-full` **has no `Regexp.PCRE`**, and Roxen hard-exits without it
+- **Pike 8.0.1116 cannot build `Gz` against zlib 1.3** — and `Roxen.pmod` calls `Gz.File`
+  at line 1064, so one missing module produced ~97 cascading errors
+- `./start --program` **does not** boot Roxen; it replaces `roxenloader.pike`
+
+The skill's *Getting a Working Roxen Environment* section has the full list, and
+`verify.sh` asserts each claim against Roxen's source.
 
 ## Does it actually help?
 

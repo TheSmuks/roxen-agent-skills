@@ -241,6 +241,84 @@ RXML reads variables as entities, `&scope.name;`:
 `rxmltags.pike` registers the built-in ones, and a `MODULE_TAG` module can add its own by
 inheriting `RXML.Scope`.
 
+## Getting a Working Roxen Environment
+
+Roxen will not start unless Pike provides a specific set of modules, and each check
+is a hard `_exit(0)` in `roxenloader.pike` — not a warning. All of the following was
+established by building it in a container and reading the failures.
+
+| Requirement | How it fails, and what it needs |
+|-------------|--------------------------------|
+| Pike **8.0 or newer** | Roxen 6 states this itself. A newer Pike is not required |
+| `Regexp.PCRE` | Hard exit. **Not in Debian/Ubuntu's `pike8.0-full`** — Pike must be built with `libpcre3-dev` present |
+| `Gz` | Pike must be built against **zlib 1.2.x** (see below) |
+| `Sql.mysql` | Build Pike with `default-libmysqlclient-dev` present |
+| `Crypto.SHA256`, `AES.GCM`, `ECC.Curve` | Build with `nettle-dev` |
+| bignum | Build with `libgmp-dev` |
+| A MySQL server | Point Roxen at one via `server/mysql-location.txt` |
+
+Check before starting, rather than debugging a silent exit:
+
+```bash
+for m in Sql.mysql Regexp.PCRE Gz Crypto.SHA256 Crypto.AES.GCM Crypto.ECC.Curve; do
+  pike -e "write(\"$m: %s\\n\", undefinedp(master()->resolv(\"$m\")) ? \"MISSING\" : \"ok\");"
+done
+```
+
+### The zlib trap
+
+**Pike 8.0.1116 cannot build its `Gz` module against zlib 1.3.** Its configure run-test
+fails, while the header check passes:
+
+```
+zlib 1.2.11  ->  checking working libz... yes
+zlib 1.3     ->  checking working libz... no
+```
+
+`Gz.pmod` is only a stub (`#require constant(.___Gz)`), so without the C binding it
+silently does not load. `Roxen.pmod` calls `Gz.File` at line 1064, so Roxen dies there —
+and every later error is cascade from it. On a distro shipping zlib 1.3 (Ubuntu 24.04),
+build Pike on an older base or supply zlib 1.2.
+
+### Pointing Roxen at a system MySQL
+
+Roxen expects a MySQL under `server/mysql/`. Redirect it with `server/mysql-location.txt`,
+read by `roxenloader.pike:mysql_location()`:
+
+```
+basedir = /usr
+mysqld = /usr/sbin/mariadbd
+mysqldump = /usr/bin/mariadb-dump
+myisamchk = /usr/bin/myisamchk
+mysqladmin = /usr/bin/mariadb-admin
+mysql_upgrade = /usr/bin/mariadb-upgrade
+```
+
+Roxen refuses MySQL versions it does not recognise; `-DALLOW_UNSUPPORTED_MYSQL` overrides
+that. Note Roxen seeds a template data directory whose system tables predate modern
+MariaDB, which is a separate hurdle from getting Pike right.
+
+## `./start --program` Does Not Boot Roxen
+
+`./start --program foo.pike` runs a program with Roxen's Pike, module path and include
+path — **not** inside the Roxen runtime. The handler in `server/start` is:
+
+```sh
+'--program')
+  program="$2"      # replaces base_server/roxenloader.pike
+```
+
+It *replaces* roxenloader rather than running after it, so the master swap and the ~145
+constants roxenloader installs never happen. Measured consequence:
+
+| Path | Does `Roxen.pmod` compile? |
+|------|---------------------------|
+| Real boot, roxenloader runs | **yes** |
+| `./start --program` | **no** — `RequestID` and friends are undefined |
+
+So `--program` is right for scripts that only need Roxen's paths, and cannot verify code
+that calls `Roxen.*`. Checking those needs a booted server.
+
 ## Running Roxen
 
 ```bash

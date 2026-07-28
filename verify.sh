@@ -124,6 +124,39 @@ else
 fi
 echo
 
+# --------------------------------------------------------- environment claims
+# These were established in a container running a real Roxen 6.3; assert the
+# source still says what the skill claims it does.
+echo "environment requirements"
+RL="$SRC/server/base_server/roxenloader.pike"
+for sym in "Regexp.PCRE" "Mysql.mysql"; do
+  if grep -qF "!constant ($sym)" "$RL" 2>/dev/null; then
+    ok "$sym is a hard startup requirement"
+  else
+    bad "$sym is a hard startup requirement" "guard not found in roxenloader"
+  fi
+done
+if grep -qF "_exit(0)" "$RL" 2>/dev/null; then
+  ok "missing prerequisites cause a hard exit, not a warning"
+else
+  bad "missing prerequisites cause a hard exit"
+fi
+has "mysql-location.txt redirects Roxen to a system MySQL" "$RL" 'mysql-location.txt'
+has "ALLOW_UNSUPPORTED_MYSQL overrides the version check" "$RL" 'ALLOW_UNSUPPORTED_MYSQL'
+# Roxen.pmod's use of Gz is why a Pike without it cannot run Roxen.
+if grep -qF "Gz.File" "$SRC/server/etc/modules/Roxen.pmod" 2>/dev/null; then
+  ok "Roxen.pmod depends on Pike's Gz module"
+else
+  bad "Roxen.pmod depends on Gz"
+fi
+# --program replaces roxenloader rather than running after it.
+if grep -A2 "'--program')" "$SRC/server/start" 2>/dev/null | grep -q 'program="\$2"'; then
+  ok "--program replaces roxenloader (so it does not boot the runtime)"
+else
+  bad "--program replaces roxenloader"
+fi
+echo
+
 # ------------------------------------------------------------------ running roxen
 echo "running Roxen"
 if [ -f "$SRC/start" ]; then
