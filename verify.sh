@@ -16,6 +16,7 @@ ROXEN_PIN=${ROXEN_PIN:-6ed456696088559c1b5e3dfdd2743ea49d43f8f6}
 
 PASS=0
 FAIL=0
+SKIP=0
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
 
@@ -23,11 +24,19 @@ ok()  { PASS=$((PASS+1)); printf '  ok   %s\n' "$1"; }
 bad() { FAIL=$((FAIL+1)); printf '  FAIL %s\n' "$1"; [ $# -gt 1 ] && printf '       %s\n' "$2"; }
 
 # count <label> <expected> <pattern>  — files under the module dirs matching pattern
+#
+# Exact counts are pinned to one revision. Against a user-supplied tree they are
+# informational: a different Roxen branch legitimately has different totals
+# (6.3 has 179 module files where the pinned 8.3 has 170) while the detection
+# rules themselves still hold. Only the pinned fetch is held to exact numbers.
 count() {
   label=$1; want=$2; pat=$3
   got=$(find "$SRC/server/modules" "$SRC/server/more_modules" -name '*.pike' \
           -exec grep -l -F -- "$pat" {} + 2>/dev/null | wc -l | tr -d ' ')
   if [ "$got" = "$want" ]; then ok "$label ($got)"
+  elif [ -n "${ROXEN_SRC:-}" ]; then
+    SKIP=$((SKIP + 1))
+    printf '  note %s: %s here, %s at the pinned revision\n' "$label" "$got" "$want"
   else bad "$label" "expected $want, got $got"; fi
 }
 
@@ -61,7 +70,10 @@ echo
 
 # --------------------------------------------------------------- module signals
 echo "module detection signals"
-if [ "$TOTAL" = "170" ]; then ok "170 module .pike files"; else bad "170 module .pike files" "got $TOTAL"; fi
+if [ "$TOTAL" = "170" ]; then ok "170 module .pike files"
+elif [ -n "${ROXEN_SRC:-}" ]; then
+  SKIP=$((SKIP + 1)); printf '  note module .pike files: %s here, 170 at the pinned revision\n' "$TOTAL"
+else bad "170 module .pike files" "got $TOTAL"; fi
 count "constant module_type"       134 'constant module_type'
 count 'inherit "module"'           129 'inherit "module"'
 count "#include <module.h>"        126 '#include <module.h>'
@@ -157,6 +169,34 @@ else
 fi
 echo
 
+# ------------------------------------------------------- schema / provisioning
+echo "schema and provisioning"
+DBM="$SRC/server/etc/modules/DBManager.pmod"
+# The reserved-word blocker: Roxen declares a column named `offset` unquoted,
+# which MariaDB 10.6+ rejects. Assert the schema still says so, since the skill
+# tells people to patch exactly this line.
+if grep -qF '"offset INT UNSIGNED' "$DBM" 2>/dev/null; then
+  ok "db_schedules declares an unquoted 'offset' column (MariaDB 10.6+ blocker)"
+elif grep -qF '`offset` INT UNSIGNED' "$DBM" 2>/dev/null; then
+  ok "db_schedules 'offset' column is already quoted (upstream fixed it)"
+else
+  bad "db_schedules offset column" "neither form found — schema changed"
+fi
+has "roxen.dbs is what the boot needs" "$DBM" 'dbs'
+# bin/create_configif.pike is how an initial admin port gets created.
+if [ -f "$SRC/server/bin/create_configif.pike" ]; then
+  ok "bin/create_configif.pike creates the initial admin interface"
+else
+  bad "bin/create_configif.pike present"
+fi
+# Exit 50 == no port opened, handled by the start script.
+if grep -qF "Failed to open any port" "$SRC/server/start" 2>/dev/null; then
+  ok "a configuration-less Roxen exits with 'Failed to open any port'"
+else
+  bad "no-port exit is reported by start"
+fi
+echo
+
 # ------------------------------------------------------------------ running roxen
 echo "running Roxen"
 if [ -f "$SRC/start" ]; then
@@ -246,5 +286,9 @@ fi
 echo
 
 echo "-----------------------------------------"
-printf 'passed: %d   failed: %d\n' "$PASS" "$FAIL"
+if [ "$SKIP" -gt 0 ]; then
+  printf 'passed: %d   failed: %d   revision differences: %d\n' "$PASS" "$FAIL" "$SKIP"
+else
+  printf 'passed: %d   failed: %d\n' "$PASS" "$FAIL"
+fi
 [ "$FAIL" -eq 0 ] || exit 1

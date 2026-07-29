@@ -24,7 +24,7 @@ RUN apt-get update -qq && apt-get install -y --no-install-recommends \
         gcc g++ make bison \
         libgmp-dev nettle-dev zlib1g-dev \
         libpcre3-dev default-libmysqlclient-dev \
-        curl ca-certificates git m4 \
+        curl ca-certificates git m4 iproute2 \
     && rm -rf /var/lib/apt/lists/*
 
 # Roxen's startup checks, and the dev package each one needs:
@@ -65,11 +65,27 @@ RUN printf '%s\n' \
       'mysql_upgrade = /usr/bin/mariadb-upgrade' \
       > /opt/roxen/server/mysql-location.txt
 
+# Roxen 6.3's DBManager schema declares a column named `offset`, which became a
+# reserved word in MariaDB 10.6. The CREATE TABLE fails with a syntax error, so
+# db_schedules is never created, schema initialisation aborts, and the boot then
+# dies on a missing roxen.dbs. Quoting the identifier is enough.
+#
+# Verified on MariaDB 10.6.23:
+#   CREATE TABLE t (offset INT)    -> syntax error
+#   CREATE TABLE t (`offset` INT)  -> ok
+RUN sed -i 's/"offset INT UNSIGNED NOT NULL DEFAULT 266400, "/"`offset` INT UNSIGNED NOT NULL DEFAULT 266400, "/' \
+      /opt/roxen/server/etc/modules/DBManager.pmod \
+    && grep -q '`offset`' /opt/roxen/server/etc/modules/DBManager.pmod \
+    && echo "patched DBManager schema for MariaDB reserved word"
+
 # Fail the build here if Pike lacks anything Roxen hard-requires, rather than
 # letting it surface later as a silent _exit(0) during Roxen startup.
 RUN for m in Sql.mysql Regexp.PCRE Gz Crypto.SHA256 Crypto.AES.GCM Crypto.ECC.Curve; do \
       pike -e "if (undefinedp(master()->resolv(\"$m\"))) { werror(\"MISSING: $m\n\"); exit(1); }" \
         || exit 1; \
     done && echo "all Roxen-required Pike modules present"
+
+COPY provision.sh /lab/provision.sh
+RUN chmod +x /lab/provision.sh
 
 WORKDIR /opt/roxen

@@ -19,8 +19,14 @@ description: >
 - Tracing which module handles a URL or request
 - Determining whether Pike files in a tree are Roxen modules
 
-Verified against the Roxen source, branches `6.3` and `8.3.806`. Counts below are measured
-across the 170 module files in `server/modules` and `server/more_modules`.
+Verified against the Roxen source, branches `6.3` and `8.3.806`, and against a running
+Roxen 6.3 in [`lab/`](../../lab/).
+
+Counts below are from the pinned `8.3.806` revision — 170 module files across
+`server/modules` and `server/more_modules`. **Other branches differ in totals but not in
+the rules**: Roxen 6.3 has 179 module files, yet `inherit "module.pike"` still appears in
+exactly 1 of them. Treat the ratios as the guidance and the absolute numbers as a
+snapshot.
 
 ## File Encoding
 
@@ -279,6 +285,61 @@ zlib 1.3     ->  checking working libz... no
 silently does not load. `Roxen.pmod` calls `Gz.File` at line 1064, so Roxen dies there —
 and every later error is cascade from it. On a distro shipping zlib 1.3 (Ubuntu 24.04),
 build Pike on an older base or supply zlib 1.2.
+
+### The MariaDB reserved-word blocker
+
+**Roxen 6.3 will not initialise its schema on MariaDB 10.6 or newer** — and this is fixed
+in later Roxen, so check your branch before patching:
+
+| Branch | `db_schedules` |
+|--------|----------------|
+| 6.3 | `"offset INT UNSIGNED` — unquoted, breaks |
+| 8.3 | ``"`offset` INT UNSIGNED`` — already fixed upstream |
+
+On 6.3 the column is declared unquoted:
+
+```sql
+CREATE TABLE IF NOT EXISTS db_schedules (
+  ... period INT UNSIGNED NOT NULL DEFAULT 604800,
+      offset INT UNSIGNED NOT NULL DEFAULT 266400, ...
+```
+
+`offset` became a reserved word in MariaDB 10.6. Verified on 10.6.23:
+
+| Statement | Result |
+|-----------|--------|
+| `CREATE TABLE t (offset INT)` | syntax error |
+| ``CREATE TABLE t (`offset` INT)`` | ok |
+
+The failure is quiet and the consequence is not: `db_schedules` is never created, schema
+initialisation aborts, and the boot dies later on a missing `roxen.dbs` — an error that
+points nowhere near the real cause. On an affected branch, quote the identifier in
+`etc/modules/DBManager.pmod`:
+
+```sh
+sed -i 's/"offset INT UNSIGNED/"`offset` INT UNSIGNED/' etc/modules/DBManager.pmod
+```
+
+### Repairing the template data directory
+
+Roxen seeds a template MySQL data directory whose `mysql.*` system tables predate modern
+MariaDB, so privilege loading fails. Repair it **in place** with `mariadb-upgrade` rather
+than re-initialising:
+
+- `mariadb-install-db` refuses on Roxen's datadir — the template's `ibdata1` is 10M while
+  install-db assumes its own default, giving *"The Auto-extending data file './ibdata1' is
+  of a different size"*. Passing Roxen's `my.cfg` via `--defaults-file` avoids that.
+- A fresh init also discards Roxen's `rw` user and its `roxen` and `local` databases, which
+  Roxen expects to exist. Upgrading in place keeps them.
+
+### Opening a port
+
+A Roxen with no configuration boots successfully and then exits **50** —
+`Failed to open any port` — which reads like a failure but is not. Create the initial
+administration server with `bin/create_configif.pike`; its prompts, in order, are server
+name, port URL, admin user, password, password again, and a confirmation.
+
+`lab/provision.sh` performs all of the above and ends with Roxen answering HTTP.
 
 ### Pointing Roxen at a system MySQL
 

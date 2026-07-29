@@ -2,7 +2,7 @@
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Roxen](https://img.shields.io/badge/roxen-6.3_%7C_8.3-informational.svg)](https://www.roxen.com/)
-[![Verified](https://img.shields.io/badge/checks-69%2F69_against_real_source-brightgreen.svg)](verify.sh)
+[![Verified](https://img.shields.io/badge/checks-73%2F73_against_real_source-brightgreen.svg)](verify.sh)
 [![Agents](https://img.shields.io/badge/agents-Copilot_%7C_Codex_%7C_Claude-8957e5.svg)](#install)
 
 Agent skills for working in a [Roxen WebServer](https://www.roxen.com/) codebase —
@@ -63,7 +63,7 @@ ROXEN_SRC=/path/to/Roxen ./verify.sh # or check your own tree
 ```
 
 ```
-passed: 69   failed: 0
+passed: 73   failed: 0
 ```
 
 Checks the module-signal counts, the full `MODULE_*` taxonomy, tag discovery in
@@ -84,6 +84,18 @@ silent exit with no diagnostic — the worst kind to debug:
 - **Pike 8.0.1116 cannot build `Gz` against zlib 1.3** — and `Roxen.pmod` calls `Gz.File`
   at line 1064, so one missing module produced ~97 cascading errors
 - `./start --program` **does not** boot Roxen; it replaces `roxenloader.pike`
+
+[`lab/provision.sh`](lab/provision.sh) takes it all the way to a serving instance:
+
+```
+$ docker run --rm -p 8080:8080 pike-roxen-lab /lab/provision.sh
+Roxen is serving on http://127.0.0.1:8080/ (401 until you authenticate)
+Server: Roxen/6.3.1779-git
+```
+
+The last blocker was a **reserved word**: Roxen 6.3 declares a `db_schedules` column named
+`offset`, which MariaDB 10.6 rejects unquoted — so the schema never initialises and the
+boot dies later on a missing `roxen.dbs`, nowhere near the cause. Fixed upstream by 8.3.
 
 The skill's *Getting a Working Roxen Environment* section has the full list, and
 `verify.sh` asserts each claim against Roxen's source.
