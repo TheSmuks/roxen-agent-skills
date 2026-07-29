@@ -278,6 +278,15 @@ fi
 # ------------------------------------------------------------------ repo health
 echo "repo consistency"
 HERE=$(cd "$(dirname "$0")" && pwd)
+# The installer once copied a file named after the *other* repo, so Copilot
+# users silently got no instructions at all. Assert it installs what exists.
+INSTR_SRC=$(sed -n 's|.*run cp "$SRC/\.github/instructions/\([a-z]*\.instructions\.md\)".*|\1|p' "$HERE/install.sh" | head -1)
+if [ -n "$INSTR_SRC" ] && [ -f "$HERE/.github/instructions/$INSTR_SRC" ]; then
+  ok "installer copies an instructions file that exists ($INSTR_SRC)"
+else
+  bad "installer copies an instructions file that exists" "referenced: ${INSTR_SRC:-none}"
+fi
+
 if [ -f "$HERE/AGENTS.md" ] && [ -f "$HERE/.github/instructions/roxen.instructions.md" ]; then
   if sed '1,4d' "$HERE/.github/instructions/roxen.instructions.md" \
        | diff -q - "$HERE/AGENTS.md" >/dev/null 2>&1; then

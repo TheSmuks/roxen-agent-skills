@@ -62,6 +62,30 @@ git commit, so it catches drift from uncommitted edits too.
 bundled tools, so a URL install is not lossy here — but `lab/` is a development harness
 that no install method copies. Clone the repo to use it.
 
+## 2b. Upgrading an existing install
+
+Check what is already there before installing anything. `--list` reports each location
+and whether its contents still match this checkout:
+
+```sh
+<repo>/install.sh --list
+```
+
+- `status: current` — nothing to do.
+- `status: live (symlink ...)` — nothing to do, ever; it tracks the checkout.
+- `status: STALE` — re-run `install.sh <target>`. It clears each skill directory before
+  copying, so files that no longer exist upstream are removed rather than left behind.
+- `status: unknown` — installed before drift tracking; re-install to get a fingerprint.
+
+**A stale install is worse than a missing one.** The skill text is instructions; if it has
+drifted from what it describes, the agent follows the old text confidently.
+
+Use `--link` on a checkout you intend to edit, and the problem cannot recur:
+
+```sh
+<repo>/install.sh --link claude
+```
+
 ## 3. Verify — do not skip this
 
 Installing is not the same as being discovered. Check that the host actually sees them:
