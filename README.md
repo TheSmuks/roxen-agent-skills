@@ -20,8 +20,15 @@ install these skills"*. It detects the host, picks a method, and verifies discov
 Doing it yourself:
 
 ```bash
-./install.sh claude        # or: codex, copilot, agents-user, ...
+./install.sh --help          # targets and options
+./install.sh --dry-run       # see what would happen
+./install.sh claude          # or: codex, copilot, agents-user, ...
+./install.sh --list          # where is it installed, and from which commit
+./install.sh --uninstall     # remove it again
 ```
+
+The installer verifies after copying and records provenance, so `--list` tells you which
+commit an install came from.
 
 If your `gh` has the `skill` command, that is GitHub's own installer and handles target
 directories, pinning and provenance:
