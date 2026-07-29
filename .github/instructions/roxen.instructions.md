@@ -1,5 +1,5 @@
 ---
-applyTo: "**/*.pike,**/*.rxml,**/modules/**"
+applyTo: "**/*.pike,**/*.rxml,**/*.inc,**/*.rjs,**/modules/**"
 ---
 
 # Roxen Working Rules
