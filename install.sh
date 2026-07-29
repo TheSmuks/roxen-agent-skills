@@ -11,6 +11,7 @@ SRC=$(cd "$(dirname "$0")" && pwd)
 SKILLS="$SRC/skills"
 DRY=0
 QUIET=0
+LINK=0
 ACTION=install
 TARGET=""
 
@@ -36,7 +37,12 @@ Targets
 Options
   -n, --dry-run     show what would happen, change nothing
   -u, --uninstall   remove previously installed skills from the target
-  -l, --list        list install locations that currently hold these skills
+  -l, --list        list install locations, and flag any that have gone stale
+  -L, --link        symlink the skills instead of copying them, so edits to this
+                    checkout take effect immediately and no install can go stale.
+                    Verified discovered on Claude Code, Codex and Copilot, at both
+                    project and user scope. Do not use if this checkout may move
+                    or be deleted — a copy is self-contained, a symlink is not.
   -q, --quiet       only report problems
   -h, --help        this text
 
@@ -47,6 +53,14 @@ Notes
   applies. Note lab/ is a development harness — no install method copies it;
   clone the repo to use it.
 EOF
+}
+
+# Content fingerprint of the skills tree. Deliberately not the git commit: a
+# stale install is usually produced by *uncommitted* edits, so a commit
+# comparison reports "current" while the copy is already wrong.
+skills_hash() {
+  ( cd "$SKILLS" 2>/dev/null && find . -type f | LC_ALL=C sort |
+    xargs cat 2>/dev/null | cksum | cut -d' ' -f1 ) 2>/dev/null || echo unknown
 }
 
 say()  { [ "$QUIET" -eq 1 ] || printf '%s\n' "$*"; }
@@ -61,7 +75,14 @@ copy_skills() {
   existing=0
   for s in $SKILL_NAMES; do [ -d "$dest/$s" ] && existing=1; done
   run mkdir -p "$dest"
-  run cp -r "$SKILLS/." "$dest/"
+  if [ "$LINK" -eq 1 ]; then
+    for s in $SKILL_NAMES; do
+      run rm -rf "$dest/$s"
+      run ln -s "$SKILLS/$s" "$dest/$s"
+    done
+  else
+    run cp -r "$SKILLS/." "$dest/"
+  fi
   # A provenance stamp, so a later reader can tell where these came from and
   # whether they are stale. gh skill records this in frontmatter; we cannot
   # rewrite the skills, so it goes beside them.
@@ -69,6 +90,8 @@ copy_skills() {
     { printf 'source: %s\n' "$SRC"
       printf 'origin: https://github.com/TheSmuks/roxen-agent-skills\n'
       printf 'commit: %s\n' "$(cd "$SRC" && git rev-parse --short HEAD 2>/dev/null || echo unknown)"
+      printf 'mode: %s\n' "$([ "$LINK" -eq 1 ] && echo symlink || echo copy)"
+      printf 'hash: %s\n' "$(skills_hash)"
       printf 'installed: %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
     } > "$dest/.roxen-agent-skills"
   fi
@@ -145,12 +168,30 @@ do_uninstall() {
 
 do_list() {
   found=0
+  cur=$(cd "$SRC" && git rev-parse --short HEAD 2>/dev/null || echo unknown)
+  curh=$(skills_hash)
   for d in "$HOME/.claude/skills" "$HOME/.copilot/skills" "$HOME/.agents/skills" \
            "./.claude/skills" "./.github/skills" "./.agents/skills"; do
     [ -f "$d/.roxen-agent-skills" ] || continue
     found=1
     printf '%s\n' "$d"
     sed 's/^/    /' "$d/.roxen-agent-skills"
+    # A copied install silently rots the moment this checkout moves on, and a
+    # stale copy is worse than none: the agent reports fixed behaviour as broken.
+    was=$(sed -n 's/^commit: //p' "$d/.roxen-agent-skills")
+    wash=$(sed -n 's/^hash: //p' "$d/.roxen-agent-skills")
+    mode=$(sed -n 's/^mode: //p' "$d/.roxen-agent-skills")
+    if [ "$mode" = symlink ]; then
+      printf '    status: live (symlink — tracks this checkout)\n'
+    elif [ -z "$wash" ]; then
+      printf '    status: unknown — installed before drift tracking; re-run install.sh\n'
+    elif [ "$wash" != "$curh" ]; then
+      printf '    status: STALE — content differs from this checkout\n'
+      printf '            installed %s, source now %s\n' "${was:-?}" "$cur"
+      printf '            re-run install.sh (add --link to stop this recurring)\n'
+    else
+      printf '    status: current\n'
+    fi
   done
   [ "$found" -eq 0 ] && echo "these skills are not installed anywhere this script looks"
   return 0
@@ -161,6 +202,7 @@ while [ $# -gt 0 ]; do
   case "$1" in
     -h|--help)      usage; exit 0 ;;
     -n|--dry-run)   DRY=1 ;;
+    -L|--link)      LINK=1 ;;
     -q|--quiet)     QUIET=1 ;;
     -u|--uninstall) ACTION=uninstall ;;
     -l|--list)      ACTION=list ;;
