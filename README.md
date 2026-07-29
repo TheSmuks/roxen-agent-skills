@@ -14,7 +14,16 @@ Every fact here is checked against **real Roxen source**: `./verify.sh` fetches
 
 ## Install
 
-Plain markdown — no runtime, no build. The installer copies files where your agent looks.
+```bash
+gh skill install TheSmuks/roxen-agent-skills
+```
+
+GitHub's own installer — it places the skill where your agent expects
+(`.github/skills`, `.claude/skills`, `.agents/skills`, or `~/.copilot/skills`) and records
+provenance in the frontmatter. Pin with `--pin v1.1.0`, or look first with
+`gh skill preview`.
+
+### Without gh
 
 ```bash
 git clone https://github.com/TheSmuks/roxen-agent-skills
@@ -24,15 +33,18 @@ cd your-roxen-project
 
 | Command | Installs to | For |
 |---------|-------------|-----|
+| `install.sh copilot` | `./.github/skills/` + `./.github/instructions/` | GitHub Copilot, this project |
+| `install.sh copilot-user` | `~/.copilot/skills/` | Copilot, all projects |
 | `install.sh claude` | `~/.claude/skills/` | Claude, all projects |
 | `install.sh claude-project` | `./.claude/skills/` + `AGENTS.md` | Claude, this project |
-| `install.sh copilot` | `./.github/skills/` + `./.github/instructions/` | GitHub Copilot |
 | `install.sh codex` | `./.agents/skills/` + `AGENTS.md` | Codex |
+| `install.sh agents-user` | `~/.agents/skills/` | any agent, all projects |
 | `install.sh agents` | `AGENTS.md` only | Cursor, Zed, Amp, anything AGENTS.md-aware |
-| `install.sh /path/to/dir` | that directory | Anything else |
 
 The Copilot instructions file applies automatically to `.pike`, `.rxml`, and anything under
 `modules/`. Re-running is safe.
+
+`lab/` is a development harness, not part of the install — clone the repo to use it.
 
 ## Skill
 
