@@ -433,6 +433,23 @@ constants roxenloader installs never happen. Measured consequence:
 So `--program` is right for scripts that only need Roxen's paths, and cannot verify code
 that calls `Roxen.*`. Checking those needs a booted server.
 
+## Finding the Installation
+
+Nothing here works without the install root, and it is not on any path Pike knows about.
+Identify a root by `server/start`, never by directory name — packaged installs are
+usually versioned under `/usr/local`, while a source checkout typically sits in `/opt`:
+
+```bash
+for d in ${ROXEN_DIR:+"$ROXEN_DIR"} /usr/local/roxen* /opt/roxen* ~/roxen ~/Roxen; do
+  [ -x "$d/server/start" ] && { echo "$d"; break; }
+done
+```
+
+`/usr/local/roxen*` is globbed because installs are commonly version-suffixed. Verified
+against a real Roxen 6 tree, where `server/start` is present and executable.
+
+Everything below runs from `$ROOT/server`, not from `$ROOT`.
+
 ## Running Roxen
 
 ```bash
