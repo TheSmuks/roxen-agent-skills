@@ -62,6 +62,37 @@ git commit, so it catches drift from uncommitted edits too.
 bundled tools, so a URL install is not lossy here — but `lab/` is a development harness
 that no install method copies. Clone the repo to use it.
 
+## 2a. Preferred: install as a plugin
+
+Claude Code and Codex both read `.claude-plugin/`, so the manifests in this repo serve
+both. This is the vendors' own mechanism: versioned, with `update` and `uninstall`, and it
+never goes stale the way a copied directory does.
+
+```sh
+# Claude Code
+claude plugin marketplace add TheSmuks/roxen-agent-skills
+claude plugin install roxen-agent-skills@smuks-roxen
+
+# Codex — same manifests
+codex plugin marketplace add https://github.com/TheSmuks/roxen-agent-skills
+codex plugin add roxen-agent-skills@smuks-roxen
+```
+
+GitHub Copilot has no plugin format; register the directory in place instead:
+
+```sh
+copilot skill add <repo>/skills            # personal
+copilot skill add --project <repo>/skills  # this project only
+```
+
+> **Do not run a plugin install and a directory install at the same time.** Both are
+> discovered, so every skill loads twice and you pay for it on every request. Uninstall
+> the directory copy first:
+>
+> ```sh
+> <repo>/install.sh --uninstall claude
+> ```
+
 ## 2b. Upgrading an existing install
 
 Check what is already there before installing anything. `--list` reports each location

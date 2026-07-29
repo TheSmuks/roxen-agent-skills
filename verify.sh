@@ -278,6 +278,29 @@ fi
 # ------------------------------------------------------------------ repo health
 echo "repo consistency"
 HERE=$(cd "$(dirname "$0")" && pwd)
+# Plugin packaging. Claude Code and Codex both read .claude-plugin/, so these
+# two manifests serve both — validated with the vendor's own validator.
+if command -v claude >/dev/null 2>&1; then
+  PV=$(claude plugin validate "$HERE" --strict 2>&1)
+  case "$PV" in *"Validation passed"*)
+    ok "plugin.json validates (strict)" ;; *)
+    bad "plugin.json validates (strict)" "$(printf '%s' "$PV" | tail -2)" ;; esac
+  MV=$(claude plugin validate "$HERE/.claude-plugin/marketplace.json" --strict 2>&1)
+  case "$MV" in *"Validation passed"*)
+    ok "marketplace.json validates (strict)" ;; *)
+    bad "marketplace.json validates (strict)" "$(printf '%s' "$MV" | tail -2)" ;; esac
+else
+  skip "plugin manifests (claude CLI not installed)"
+fi
+
+for s in $(cd "$HERE/skills" && ls -d */ | tr -d /); do
+  if grep -q "\"./skills/$s\"" "$HERE/.claude-plugin/plugin.json"; then
+    ok "plugin.json lists $s"
+  else
+    bad "plugin.json lists $s"
+  fi
+done
+
 # The installer once copied a file named after the *other* repo, so Copilot
 # users silently got no instructions at all. Assert it installs what exists.
 INSTR_SRC=$(sed -n 's|.*run cp "$SRC/\.github/instructions/\([a-z]*\.instructions\.md\)".*|\1|p' "$HERE/install.sh" | head -1)

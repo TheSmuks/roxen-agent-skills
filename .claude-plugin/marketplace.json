@@ -1,0 +1,16 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "smuks-roxen",
+  "description": "Agent skills for Roxen WebServer, verified against real Roxen source and a lab that boots it.",
+  "owner": {
+    "name": "TheSmuks",
+    "email": "therealsmuks@gmail.com"
+  },
+  "plugins": [
+    {
+      "name": "roxen-agent-skills",
+      "source": "./",
+      "description": "Recognising and writing Roxen modules in Pike: module_type, RXML tags, RequestID, defvar."
+    }
+  ]
+}
