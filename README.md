@@ -15,15 +15,20 @@ Every fact here is checked against **real Roxen source**: `./verify.sh` fetches
 ## Install
 
 ```bash
-gh skill install TheSmuks/roxen-agent-skills
+./install.sh claude        # or: codex, copilot, agents-user, ...
 ```
 
-GitHub's own installer — it places the skill where your agent expects
-(`.github/skills`, `.claude/skills`, `.agents/skills`, or `~/.copilot/skills`) and records
-provenance in the frontmatter. Pin with `--pin v1.1.0`, or look first with
-`gh skill preview`.
+If your `gh` has the `skill` command, that is GitHub's own installer and handles target
+directories, pinning and provenance:
 
-### Without gh
+```bash
+gh skill install TheSmuks/roxen-agent-skills --pin v1.1.0
+```
+
+> `gh skill` is newer than gh 2.46.0, which does not have it. Check with
+> `gh skill --help` first.
+
+### install.sh
 
 ```bash
 git clone https://github.com/TheSmuks/roxen-agent-skills
