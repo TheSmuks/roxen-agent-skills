@@ -320,6 +320,59 @@ points nowhere near the real cause. On an affected branch, quote the identifier 
 sed -i 's/"offset INT UNSIGNED/"`offset` INT UNSIGNED/' etc/modules/DBManager.pmod
 ```
 
+### `mysql.user` is a view on MariaDB 10.4+
+
+`DBManager.pmod` grants Roxen's own database users by writing to `mysql.user` and
+`mysql.db` directly:
+
+```pike
+db->big_query("REPLACE INTO db (Host, Db, User, Select_priv, ...")
+```
+
+Since MariaDB 10.4, `mysql.user` is a **view** over `global_priv`, so those writes fail:
+
+```
+UPDATE user SET Select_priv='Y' WHERE Host='localhost' AND User='rw'  failed
+(View 'mysql.user' references invalid table(s) or column(s)...)
+```
+
+Roxen therefore never grants its `rw` user, cannot reach its databases, and **every page
+becomes a 404 with unparsed RXML** — a symptom that looks like a template or RXML problem
+and is really a privilege one. The debug log is where the real cause appears:
+
+```
+Internal server error: Mysql.mysql(): Couldn't connect to SQL-server
+Attempt to autocreate database "local" failed
+```
+
+Do not patch the SQL. Create the users with `GRANT`, the supported interface, before
+starting Roxen — then Roxen's own writes are redundant rather than load-bearing:
+
+```sql
+CREATE USER IF NOT EXISTS 'rw'@'localhost';
+CREATE USER IF NOT EXISTS 'ro'@'localhost';
+GRANT ALL PRIVILEGES ON *.* TO 'rw'@'localhost' WITH GRANT OPTION;
+GRANT SELECT ON *.* TO 'ro'@'localhost';
+```
+
+> Do **not** run `mariadb-upgrade` under `--skip-grant-tables` while trying to fix this.
+> It leaves the `mysql.user` view broken rather than repairing it, which produces the same
+> symptom from a different cause.
+
+### Enabling a module without the admin UI
+
+Configurations are files in the config directory. A module is enabled by adding it to the
+`EnabledModules` region:
+
+```xml
+<region name='EnabledModules'>
+  <var name='TestLab#0'> <int>1</int> </var>
+```
+
+Put the module in `server/modules/`, add that line, restart. `lab/TestLab.pike` is a
+working example — a `MODULE_LOCATION | MODULE_TAG` module that answers at its mount point
+and exercises `Roxen.html_encode_string`, `id->not_query`, `id->misc` and an RXML tag.
+
 ### Repairing the template data directory
 
 Roxen seeds a template MySQL data directory whose `mysql.*` system tables predate modern

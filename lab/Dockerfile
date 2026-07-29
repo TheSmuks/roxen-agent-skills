@@ -85,7 +85,7 @@ RUN for m in Sql.mysql Regexp.PCRE Gz Crypto.SHA256 Crypto.AES.GCM Crypto.ECC.Cu
         || exit 1; \
     done && echo "all Roxen-required Pike modules present"
 
-COPY provision.sh /lab/provision.sh
-RUN chmod +x /lab/provision.sh
+COPY provision.sh load-module.sh TestLab.pike /lab/
+RUN chmod +x /lab/provision.sh /lab/load-module.sh
 
 WORKDIR /opt/roxen

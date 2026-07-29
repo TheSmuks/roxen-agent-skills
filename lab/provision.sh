@@ -29,22 +29,55 @@ timeout 150 ./start -DALLOW_UNSUPPORTED_MYSQL --once --config-dir="$CONFDIR" \
 [ -f "$CONFDIR/_mysql/my.cfg" ] || { echo "no my.cfg — Roxen never seeded the datadir"; exit 1; }
 
 # ---------------------------------------------------------------------------
-say "2/4  repair the template's system tables"
-# The template's mysql.* system tables predate modern MariaDB: 'mysql.plugin'
-# and friends are missing, which breaks privilege loading. mariadb-install-db
-# cannot be used on the template as-is — its ibdata1 is 10M while install-db
-# assumes its own default, giving "The Auto-extending data file './ibdata1' is
-# of a different size". Upgrading in place keeps Roxen's `rw` user and its
-# `roxen`/`local` databases, which a fresh init would discard.
-timeout 20 /usr/sbin/mariadbd \
-  --defaults-file="$CONFDIR/_mysql/my.cfg" \
-  --socket="$SOCK" --skip-grant-tables --skip-external-locking \
-  --skip-name-resolve --basedir=/usr --datadir="$CONFDIR/_mysql" >/dev/null 2>&1 &
+say "2/4  build a MariaDB-native privilege system"
+# Roxen's template data directory cannot be used as-is on modern MariaDB, for
+# two separate reasons:
+#
+#   * Its mysql.* system tables predate MariaDB 10.4, so privilege loading
+#     fails outright.
+#   * DBManager.pmod sets privileges by writing to mysql.user and mysql.db
+#     directly. Since 10.4 mysql.user is a *view* over global_priv, so those
+#     writes fail with "View 'mysql.user' references invalid table(s)", Roxen
+#     never grants its own `rw` user, and every page becomes a 404.
+#
+# Repairing the template in place does not help — mariadb-upgrade cannot fix a
+# schema this old, and running it under --skip-grant-tables leaves the view
+# broken. So build a fresh, MariaDB-native datadir instead and create Roxen's
+# users with GRANT, the supported interface. Roxen autocreates its own tables.
+#
+# Roxen's my.cfg must be supplied to mariadb-install-db: the template sets
+# innodb-data-file-path=ibdata1:10M:autoextend, and without it install-db uses
+# its own default and fails with "The Auto-extending data file './ibdata1' is of
+# a different size".
+pkill -f mariadbd 2>/dev/null || true
+sleep 2
+cp "$CONFDIR/_mysql/my.cfg" /tmp/roxen-my.cfg
+rm -rf "$CONFDIR/_mysql"
+mkdir -p "$CONFDIR/_mysql"
+cp /tmp/roxen-my.cfg "$CONFDIR/_mysql/my.cfg"
+
+mariadb-install-db --defaults-file="$CONFDIR/_mysql/my.cfg" --user=root \
+  --datadir="$CONFDIR/_mysql" --auth-root-authentication-method=normal \
+  >/tmp/install-db.log 2>&1 || { echo "mariadb-install-db failed"; tail -5 /tmp/install-db.log; exit 1; }
+
+timeout 40 /usr/sbin/mariadbd \
+  --defaults-file="$CONFDIR/_mysql/my.cfg" --socket="$SOCK" \
+  --skip-external-locking --skip-name-resolve \
+  --basedir=/usr --datadir="$CONFDIR/_mysql" >/dev/null 2>&1 &
 sleep 9
-mariadb-upgrade --socket="$SOCK" -u root --force >/dev/null 2>&1 || true
+
+mariadb --socket="$SOCK" -u root <<'SQL'
+CREATE DATABASE IF NOT EXISTS local;
+CREATE DATABASE IF NOT EXISTS roxen;
+CREATE USER IF NOT EXISTS 'rw'@'localhost';
+CREATE USER IF NOT EXISTS 'ro'@'localhost';
+GRANT ALL PRIVILEGES ON *.* TO 'rw'@'localhost' WITH GRANT OPTION;
+GRANT SELECT ON *.* TO 'ro'@'localhost';
+FLUSH PRIVILEGES;
+SQL
+echo "privilege system rebuilt; rw/ro granted"
 mariadb --socket="$SOCK" -u root -e "SHUTDOWN;" >/dev/null 2>&1 || true
 sleep 3
-echo "system tables upgraded"
 
 # ---------------------------------------------------------------------------
 say "3/4  create the administration interface"

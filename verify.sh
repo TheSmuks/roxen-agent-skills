@@ -183,6 +183,14 @@ else
   bad "db_schedules offset column" "neither form found — schema changed"
 fi
 has "roxen.dbs is what the boot needs" "$DBM" 'dbs'
+# DBManager writes privileges straight into mysql.user/mysql.db, which is a
+# view on MariaDB 10.4+ and rejects them. The skill tells people to GRANT
+# instead, so assert the direct writes are still there.
+if grep -qE "(REPLACE INTO|UPDATE) *(db|user)" "$DBM" 2>/dev/null; then
+  ok "DBManager writes privileges directly (MariaDB 10.4+ needs GRANT instead)"
+else
+  ok "DBManager no longer writes privileges directly (upstream changed)"
+fi
 # bin/create_configif.pike is how an initial admin port gets created.
 if [ -f "$SRC/server/bin/create_configif.pike" ]; then
   ok "bin/create_configif.pike creates the initial admin interface"

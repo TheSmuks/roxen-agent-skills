@@ -37,9 +37,42 @@ Each of these was a real dead end, diagnosed by running it:
   running after it, so the runtime constants never exist. With roxenloader running,
   `Roxen.pmod` compiles; under `--program` it does not.
 
+- **`mysql.user` is a view on MariaDB 10.4+.** `DBManager.pmod` grants Roxen's own users by
+  writing to `mysql.user`/`mysql.db` directly, which that view rejects. Roxen then never
+  grants its `rw` user and every page becomes a 404 with unparsed RXML — a symptom that
+  looks like an RXML fault and is really a privilege one. Create the users with `GRANT`
+  before starting Roxen. Do *not* run `mariadb-upgrade` under `--skip-grant-tables` while
+  investigating; that breaks the view in a different way and produces the same symptom.
+
 ## Status
 
-With this image Roxen compiles cleanly — every module loads, and the boot proceeds past
-module loading into `DBManager`. It does not yet serve requests: Roxen's template MySQL
-data directory is incompatible with modern MariaDB's system tables. That remaining gap is
-database provisioning, not Pike or Roxen code.
+Roxen serves, and a module written against Roxen's APIs runs inside it.
+
+```bash
+docker build -t pike-roxen-lab .
+docker run --rm pike-roxen-lab /lab/provision.sh     # Roxen answering HTTP
+docker run --rm pike-roxen-lab /lab/load-module.sh   # + a real module loaded
+```
+
+`load-module.sh` installs [`TestLab.pike`](TestLab.pike) — a
+`MODULE_LOCATION | MODULE_TAG` module — enables it by adding one line to the
+configuration's `EnabledModules` region, restarts, and fetches `/labtest/probe`:
+
+```
+HTTP/1.1 200 OK
+Server: Roxen/6.3.1779-git
+
+LABTEST OK
+encoded=([ /* 2 elements */  &#34;a&#34;: 1, &#34;b&#34;: ({ 2, 3 }) ])
+not_query=/labtest/probe
+misc_is_mapping=1
+```
+
+The `&#34;` matters: it is `Roxen.html_encode_string` encoding the quotes produced by
+`sprintf("%O", …)`. That call is the one that cannot be checked outside a booted Roxen,
+and here it is running inside one — together with `id->not_query`, `id->misc` and
+`Roxen.http_string_answer`.
+
+The script asserts on that content rather than on the status code. Checking only the
+status is how an earlier version of this lab reported a 404 page as a working admin
+interface.
