@@ -14,6 +14,11 @@ Every fact here is checked against **real Roxen source**: `./verify.sh` fetches
 
 ## Install
 
+**Working with an agent?** Point it at [`INSTALL.md`](INSTALL.md) — *"read INSTALL.md and
+install these skills"*. It detects the host, picks a method, and verifies discovery.
+
+Doing it yourself:
+
 ```bash
 ./install.sh claude        # or: codex, copilot, agents-user, ...
 ```
